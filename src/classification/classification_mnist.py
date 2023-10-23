@@ -1,10 +1,28 @@
 from torch.utils.data import Dataset
+import albumentations as A
+from albumentations.pytorch import ToTensorV2
 import os
 from tqdm import tqdm
+from PIL import Image
+import numpy as np
+from .classificiation_image import ClassificationImage
 
-class ClassificationDataset(Dataset):
+class ClassificationMNIST(Dataset):
     def __init__(self,rootdir:str,progress:bool=True,nmax_per_class:int=None):
         assert os.path.exists(rootdir),'Root dir should be an existing directory.'
+        self.train_transforms=A.Compose([
+            A.RandomBrightnessContrast(p=0.5),
+            A.GridDistortion(),
+            A.ToFloat(max_value=255),
+            A.Normalize(mean=0.5,std=0.5),
+            ToTensorV2()
+        ])
+        self.test_transform=A.Compose([
+            A.ToFloat(max_value=255),
+            A.Normalize(mean=0.5,std=0.5),
+            ToTensorV2()
+        ])
+
         self.splits = ['train','test']
         self.data={}
         self.is_train=True
@@ -44,12 +62,18 @@ class ClassificationDataset(Dataset):
         else:
             return len(self.data['test'])
 
+    def __getitem__(self, index):
+        assert index<self.__len__(),f"index should be lower than {len(self)}"
+        data = self.data['train'] if self.is_train else self.data['test']
+        transform = self.train_transforms if self.is_train else self.test_transform
+        item = data[index]
+        item:ClassificationImage
+        image = item.get_image()
+        target = item.get_target()
+        if transform:
+            output = transform(image=image)
+            image = output['image']
 
-class ClassificationImage:
-    def __init__(self,imgpath:str,cls_id:int):
-        self.name = os.path.basename(imgpath)
-        self.imgpath = imgpath
-        self.cls_id = int(cls_id)
-    
-    def check(self):
-        return os.path.exists(self.imgpath)
+        return image,target,item.name
+
+
