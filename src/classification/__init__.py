@@ -1,1 +1,2 @@
 from .classification_mnist import ClassificationMNIST
+from .classification_caltech import ClassificationCALTECH
