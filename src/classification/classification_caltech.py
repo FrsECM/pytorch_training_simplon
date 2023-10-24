@@ -9,7 +9,7 @@ class ClassificationCALTECH(Dataset):
     def __init__(self,rootdir:str,progress:bool=True,nmax_per_class:int=None):
         assert os.path.exists(rootdir),'Root dir should be an existing directory.'
         self.train_transforms=A.Compose([
-            A.Resize(256,256),
+            A.Resize(224,224),
             A.RandomBrightnessContrast(p=0.5),
             A.GridDistortion(),
             A.ToFloat(max_value=255),
