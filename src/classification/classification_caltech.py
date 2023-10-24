@@ -3,14 +3,13 @@ import albumentations as A
 from albumentations.pytorch import ToTensorV2
 import os
 from tqdm import tqdm
-from PIL import Image
-import numpy as np
 from .classificiation_image import ClassificationImage
 
 class ClassificationCALTECH(Dataset):
     def __init__(self,rootdir:str,progress:bool=True,nmax_per_class:int=None):
         assert os.path.exists(rootdir),'Root dir should be an existing directory.'
         self.train_transforms=A.Compose([
+            A.Resize(256,256),
             A.RandomBrightnessContrast(p=0.5),
             A.GridDistortion(),
             A.ToFloat(max_value=255),
@@ -18,6 +17,7 @@ class ClassificationCALTECH(Dataset):
             ToTensorV2()
         ])
         self.test_transform=A.Compose([
+            A.Resize(256,256),
             A.ToFloat(max_value=255),
             A.Normalize(mean=0.5,std=0.5),
             ToTensorV2()
