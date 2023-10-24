@@ -1,6 +1,19 @@
 import torch
 import torch.nn as nn
 
+class ConvBlock(nn.Module):
+    def __init__(self, in_channels:int,out_channels:int,kernel_size:int=3,stride:int=1,padding:int=1):
+        super().__init__()
+        self.conv = nn.Conv2d(in_channels,out_channels,kernel_size,stride,padding)
+        self.bn = nn.BatchNorm2d(out_channels)
+        self.act = nn.ReLU()
+    def forward(self,x):
+        y = self.conv(x)
+        y = self.bn(y)
+        y = self.act(y)
+        return y
+
+
 class ResnetBlock(nn.Module):
     def __init__(self,
                  in_channels:int,
@@ -9,11 +22,8 @@ class ResnetBlock(nn.Module):
                  stride:int=1,
                  padding:int=1):
         super().__init__()
-        self.conv1 =nn.Conv2d(in_channels,out_channels,kernel_size,stride,padding)
-        self.bn1 = nn.BatchNorm2d(out_channels)
-        self.act = nn.ReLU()
-        self.conv2 = nn.Conv2d(out_channels,out_channels,kernel_size,padding=padding)
-        self.bn2 = nn.BatchNorm2d(out_channels)
+        self.conv1 =ConvBlock(in_channels,out_channels,kernel_size,stride,padding)
+        self.conv2 = ConvBlock(out_channels,out_channels,kernel_size,padding=padding)
         # Shortcut management
         self.shortcut = nn.Conv2d(in_channels,out_channels,kernel_size=1,stride=stride)
 
@@ -21,14 +31,18 @@ class ResnetBlock(nn.Module):
         shortcut = self.shortcut(x)
         # First Stage
         y1 = self.conv1(x)
-        y1 = self.bn1(y1)
-        y1 = self.act(y1)
+
         # Second Stage
         y2 = self.conv2(y1)
-        y2 = self.bn2(y2)
-        y2 = self.act(y2)
         y = y2 + shortcut
         return y
+
+class Resnet18(nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.conv1=nn.Conv2d(3,64,kernel_size=7,stride=2,padding=3)
+    def forward(self,x):
+        pass
 
 
 if __name__=='__main__':
