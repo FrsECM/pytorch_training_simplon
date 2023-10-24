@@ -4,10 +4,10 @@ from albumentations.pytorch import ToTensorV2
 import os
 from tqdm import tqdm
 from .classificiation_image import ClassificationImage
+import json
 
 class ClassificationCALTECH(Dataset):
-    def __init__(self,rootdir:str,progress:bool=True,nmax_per_class:int=None):
-        assert os.path.exists(rootdir),'Root dir should be an existing directory.'
+    def __init__(self):
         self.train_transforms=A.Compose([
             A.Resize(224,224),
             A.RandomBrightnessContrast(p=0.5),
@@ -22,16 +22,32 @@ class ClassificationCALTECH(Dataset):
             A.Normalize(mean=0.5,std=0.5),
             ToTensorV2()
         ])
-        self.data=[]
+        self.data={'classes':{},'data':[]}
         self.is_train=True
-        self.classes={}
+
+    def from_folder(rootdir:str,progress:bool=True,nmax_per_class:int=None)->'ClassificationCALTECH':
+        """We create a dataset from a folder.
+        --Rootdir
+        |--Class1
+        |---- img1.jpg
+        |---- img2.jpg
+        |---- ....
+        |--Class2
+
+        Args:
+            rootdir (str): Root directory of the dataset.
+            progress (bool, optional): _description_. Defaults to True.
+            nmax_per_class (int, optional): _description_. Defaults to None.
+        """
+        dataset = ClassificationCALTECH()
+        assert os.path.exists(rootdir),'Root dir should be an existing directory.'
         cls_dirnames = tqdm(os.listdir(rootdir),disable=not progress)
         for cls_id,cls_dirname in enumerate(cls_dirnames):
             cls_dirnames.set_postfix(**{'cls_name':cls_dirname})
             # We create the directory path
             cls_dir = os.path.join(rootdir,cls_dirname)
             # We parse the name
-            self.classes[cls_id]=cls_dirname
+            dataset.data['classes'][cls_id]=cls_dirname
             imgnames = os.listdir(cls_dir)
             for i,imgname in enumerate(imgnames):
                 if nmax_per_class is not None:
@@ -41,8 +57,28 @@ class ClassificationCALTECH(Dataset):
                 # Ici ajouter l'image dans le dataset...
                 cls_img = ClassificationImage(imgpath,cls_id)
                 if cls_img.check():
-                    self.data.append(cls_img)
-                              
+                    dataset.data['data'].append(cls_img.to_dict())
+        return dataset
+
+    def from_json(loadpath:str)->'ClassificationCALTECH':
+        """Load a CALTECH Dataset from json
+
+        Args:
+            loadpath (str): _description_
+
+        Returns:
+            ClassificationCALTECH: _description_
+        """
+        assert os.path.exists(loadpath),"json should exist"
+        ds = ClassificationCALTECH()
+        with open(loadpath,'r') as jsf:
+            ds.data=json.load(jsf)
+        return ds
+
+    def save(self,savepath:str):
+        with open(savepath,'w') as jsf:
+            json.dump(self.data,jsf,indent=4)
+    
     def train(self,train:bool=True):
         self.is_train = train
     
@@ -50,13 +86,12 @@ class ClassificationCALTECH(Dataset):
         self.is_train = not eval
     
     def __len__(self):
-        return len(self.data)
+        return len(self.data['data'])
 
     def __getitem__(self, index):
         assert index<self.__len__(),f"index should be lower than {len(self)}"
         transform = self.train_transforms if self.is_train else self.test_transform
-        item = self.data[index]
-        item:ClassificationImage
+        item = ClassificationImage.from_dict(self.data['data'][index])
         image = item.get_image()
         target = item.get_target()
         if transform:

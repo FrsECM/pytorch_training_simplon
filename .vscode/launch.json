@@ -13,13 +13,13 @@
             "justMyCode": true
         },
         {
-            "name": "Python: Train MNIST",
+            "name": "Python: Train CALTECH",
             "type": "python",
             "request": "launch",
-            "program": "scripts/train_mnist.py",
+            "program": "scripts/train_caltech.py",
             "console": "integratedTerminal",
             "justMyCode": true,
-            "args": ["--nmax","200"]
+            "args": ["--nmax","15"]
         }
     ]
 }
