@@ -1,29 +1,70 @@
+from typing import Any
 from torch.utils.data import Dataset
 import albumentations as A
+from .interfaces import IClassificationDataset
 from albumentations.pytorch import ToTensorV2
 import os
 from tqdm import tqdm
 from .classificiation_image import ClassificationImage
 import json
+import numpy as np
 
-class ClassificationCALTECH(Dataset):
+class ClassificationCALTECH(IClassificationDataset):
     def __init__(self):
         self.train_transforms=A.Compose([
             A.Resize(224,224),
             A.RandomBrightnessContrast(p=0.5),
-            A.GridDistortion(),
+            A.HorizontalFlip(p=0.5),
             A.ToFloat(max_value=255),
             A.Normalize(mean=0.5,std=0.5),
             ToTensorV2()
         ])
         self.test_transform=A.Compose([
-            A.Resize(256,256),
+            A.Resize(224,224),
             A.ToFloat(max_value=255),
             A.Normalize(mean=0.5,std=0.5),
             ToTensorV2()
         ])
-        self.data={'classes':{},'data':[]}
+        self.data={'classes':{},'data':[],'train_indices':[],'val_indices':[],'test_indices':[]}
         self.is_train=True
+    
+    def split(self,train_ratio:int,val_ratio:int,test_ratio:int,seed:int=42):
+        """Split the dataset in 3 splits, train / val / test
+
+        Args:
+            train_ratio (int): _description_
+            val_ratio (int): _description_
+            test_ratio (int): _description_
+            seed (int, optional): _description_. Defaults to 42.
+        """
+        n_total = len(self)
+        ratio_total = train_ratio+val_ratio+test_ratio
+        n_train = int(len(self)*train_ratio/ratio_total)
+        n_val = int(len(self)*val_ratio/ratio_total)
+        n_test = int(len(self)-n_train-n_val)
+        indices = np.arange(0,n_total)
+        np.random.seed(seed)
+        np.random.shuffle(indices)
+        train_indices = indices[:n_train]
+        val_indices = indices[n_train:n_train+n_val]
+        test_indices = indices[n_train+n_val:]
+        self.data['train_indices']=train_indices
+        self.data['val_indices']=val_indices
+        self.data['test_indices']=test_indices
+    
+    @property
+    def classes(self):
+        return self.data['classes']
+
+    @property
+    def train_indices(self):
+        return self.data['train_indices']
+    @property
+    def val_indices(self):
+        return self.data['val_indices']
+    @property
+    def test_indices(self):
+        return self.data['test_indices']
 
     def from_folder(rootdir:str,progress:bool=True,nmax_per_class:int=None)->'ClassificationCALTECH':
         """We create a dataset from a folder.
