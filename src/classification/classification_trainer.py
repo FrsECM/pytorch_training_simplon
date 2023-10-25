@@ -8,6 +8,7 @@ from torch.cuda.amp.grad_scaler import GradScaler
 import os
 from tqdm import tqdm
 from datetime import datetime
+from .utils import grad_norm,plot_grad_flow
 
 class ClassificationTrainer:
     def __init__(self,model:nn.Module,log_dir:str,log_batch:bool=False):
@@ -78,8 +79,13 @@ class ClassificationTrainer:
                     else:
                         total_loss.backward()
                         self.optimizer.step()
-                        
+                    g_norm = grad_norm(self.model)
+                    if not i%100:
+                        fig = plot_grad_flow(self.model.named_parameters())
+                        self.writer.add_figure(f'Train/Grad_norm{i}',fig,global_step=epoch)
+                        del(fig)
                     outputs_batch['total_loss']=total_loss.item()
+                    outputs_batch['g_norm']=g_norm.item()
                     # We update model parameters.
                     tbar.set_postfix(**outputs_batch)
                     for k,v in outputs_batch.items():

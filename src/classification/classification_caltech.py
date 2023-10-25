@@ -13,15 +13,12 @@ class ClassificationCALTECH(IClassificationDataset):
     def __init__(self):
         self.train_transforms=A.Compose([
             A.Resize(224,224),
-            A.RandomBrightnessContrast(p=0.5),
             A.HorizontalFlip(p=0.5),
-            A.ToFloat(max_value=255),
             A.Normalize(mean=0.5,std=0.5),
             ToTensorV2()
         ])
         self.test_transform=A.Compose([
             A.Resize(224,224),
-            A.ToFloat(max_value=255),
             A.Normalize(mean=0.5,std=0.5),
             ToTensorV2()
         ])

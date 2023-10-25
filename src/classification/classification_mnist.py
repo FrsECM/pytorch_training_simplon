@@ -1,55 +1,122 @@
+from typing import Any
 from torch.utils.data import Dataset
 import albumentations as A
+from .interfaces import IClassificationDataset
 from albumentations.pytorch import ToTensorV2
 import os
 from tqdm import tqdm
-from PIL import Image
-import numpy as np
 from .classificiation_image import ClassificationImage
+import json
+import numpy as np
 
-class ClassificationMNIST(Dataset):
-    def __init__(self,rootdir:str,progress:bool=True,nmax_per_class:int=None):
-        assert os.path.exists(rootdir),'Root dir should be an existing directory.'
+class ClassificationMNIST(IClassificationDataset):
+    def __init__(self):
         self.train_transforms=A.Compose([
+            A.Resize(64,64),
             A.RandomBrightnessContrast(p=0.5),
-            A.GridDistortion(),
-            A.ToFloat(max_value=255),
             A.Normalize(mean=0.5,std=0.5),
             ToTensorV2()
         ])
         self.test_transform=A.Compose([
-            A.ToFloat(max_value=255),
+            A.Resize(64,64),
             A.Normalize(mean=0.5,std=0.5),
             ToTensorV2()
         ])
-
-        self.splits = ['train','test']
-        self.data={}
+        self.data={'classes':{},'data':[],'train_indices':[],'val_indices':[],'test_indices':[]}
         self.is_train=True
-        self.classes={}
-        for split in self.splits:
-            if progress:
-                print(f'Indexing split {split}')
-            self.data[split]=[]
-            split_dir = os.path.join(rootdir,split)
-            assert os.path.exists(split_dir),f'Split {split_dir} should exists'
-            cls_dirnames = os.listdir(split_dir)
-            for cls_dirname in cls_dirnames:
-                # We create the directory path
-                cls_dir = os.path.join(split_dir,cls_dirname)
-                # We parse the name
-                cls_id,cls_name = cls_dirname.replace(' ','').split('-')
-                self.classes[int(cls_id)]=cls_name
-                for i,imgname in enumerate(tqdm(os.listdir(cls_dir),disable=not progress)):
-                    if nmax_per_class is not None:
-                        if i>=nmax_per_class:
-                            break
-                    imgpath = os.path.join(cls_dir,imgname)
-                    # Ici ajouter l'image dans le dataset...
-                    cls_img = ClassificationImage(imgpath,cls_id)
-                    if cls_img.check():
-                        self.data[split].append(cls_img)
-                              
+    
+    def split(self,train_ratio:int,val_ratio:int,test_ratio:int,seed:int=42):
+        """Split the dataset in 3 splits, train / val / test
+
+        Args:
+            train_ratio (int): _description_
+            val_ratio (int): _description_
+            test_ratio (int): _description_
+            seed (int, optional): _description_. Defaults to 42.
+        """
+        n_total = len(self)
+        ratio_total = train_ratio+val_ratio+test_ratio
+        n_train = int(len(self)*train_ratio/ratio_total)
+        n_val = int(len(self)*val_ratio/ratio_total)
+        n_test = int(len(self)-n_train-n_val)
+        indices = np.arange(0,n_total)
+        np.random.seed(seed)
+        np.random.shuffle(indices)
+        train_indices = indices[:n_train]
+        val_indices = indices[n_train:n_train+n_val]
+        test_indices = indices[n_train+n_val:]
+        self.data['train_indices']=train_indices
+        self.data['val_indices']=val_indices
+        self.data['test_indices']=test_indices
+    
+    @property
+    def classes(self):
+        return self.data['classes']
+
+    @property
+    def train_indices(self):
+        return self.data['train_indices']
+    @property
+    def val_indices(self):
+        return self.data['val_indices']
+    @property
+    def test_indices(self):
+        return self.data['test_indices']
+
+    def from_folder(rootdir:str,progress:bool=True,nmax_per_class:int=None)->'ClassificationCALTECH':
+        """We create a dataset from a folder.
+        --Rootdir
+        |--Class1
+        |---- img1.jpg
+        |---- img2.jpg
+        |---- ....
+        |--Class2
+
+        Args:
+            rootdir (str): Root directory of the dataset.
+            progress (bool, optional): _description_. Defaults to True.
+            nmax_per_class (int, optional): _description_. Defaults to None.
+        """
+        dataset = ClassificationMNIST()
+        assert os.path.exists(rootdir),'Root dir should be an existing directory.'
+        cls_dirnames = tqdm(os.listdir(rootdir),disable=not progress)
+        for cls_id,cls_dirname in enumerate(cls_dirnames):
+            cls_dirnames.set_postfix(**{'cls_name':cls_dirname})
+            # We create the directory path
+            cls_dir = os.path.join(rootdir,cls_dirname)
+            # We parse the name
+            dataset.data['classes'][cls_id]=cls_dirname
+            imgnames = os.listdir(cls_dir)
+            for i,imgname in enumerate(imgnames):
+                if nmax_per_class is not None:
+                    if i>=nmax_per_class:
+                        break
+                imgpath = os.path.join(cls_dir,imgname)
+                # Ici ajouter l'image dans le dataset...
+                cls_img = ClassificationImage(imgpath,cls_id)
+                if cls_img.check():
+                    dataset.data['data'].append(cls_img.to_dict())
+        return dataset
+
+    def from_json(loadpath:str)->'ClassificationMNIST':
+        """Load a CALTECH Dataset from json
+
+        Args:
+            loadpath (str): _description_
+
+        Returns:
+            ClassificationCALTECH: _description_
+        """
+        assert os.path.exists(loadpath),"json should exist"
+        ds = ClassificationMNIST()
+        with open(loadpath,'r') as jsf:
+            ds.data=json.load(jsf)
+        return ds
+
+    def save(self,savepath:str):
+        with open(savepath,'w') as jsf:
+            json.dump(self.data,jsf,indent=4)
+    
     def train(self,train:bool=True):
         self.is_train = train
     
@@ -57,17 +124,12 @@ class ClassificationMNIST(Dataset):
         self.is_train = not eval
     
     def __len__(self):
-        if self.is_train:
-            return len(self.data['train'])
-        else:
-            return len(self.data['test'])
+        return len(self.data['data'])
 
     def __getitem__(self, index):
         assert index<self.__len__(),f"index should be lower than {len(self)}"
-        data = self.data['train'] if self.is_train else self.data['test']
         transform = self.train_transforms if self.is_train else self.test_transform
-        item = data[index]
-        item:ClassificationImage
+        item = ClassificationImage.from_dict(self.data['data'][index])
         image = item.get_image()
         target = item.get_target()
         if transform:

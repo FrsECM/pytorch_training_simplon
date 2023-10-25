@@ -20,6 +20,15 @@
             "console": "integratedTerminal",
             "justMyCode": true,
             "args": ["--nmax","15"]
+        },
+        {
+            "name": "Python: Train MNIST",
+            "type": "python",
+            "request": "launch",
+            "program": "scripts/train_mnist.py",
+            "console": "integratedTerminal",
+            "justMyCode": true,
+            "args": ["--nmax","15"]
         }
     ]
 }
